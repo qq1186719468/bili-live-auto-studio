@@ -2292,8 +2292,11 @@ class DesktopClient:
                     room = replace(
                         api_room,
                         streamer=path_streamer or api_room.streamer,
-                        title=api_room.title
-                        or recording_file_title(Path(existing[0]), Path(existing[0]).stem),
+                        # The recorder filename captures the title at the
+                        # time of recording. Prefer it over an API title that
+                        # may have changed since this historical live ended.
+                        title=recording_file_title(Path(existing[0]), api_room.title)
+                        or Path(existing[0]).stem,
                         live_time=manual_start.strftime("%Y-%m-%d %H:%M:%S"),
                     )
                 recording = Recording.from_room(
