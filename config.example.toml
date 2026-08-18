@@ -1,0 +1,98 @@
+[app]
+# 轮询直播状态的间隔。频率过高会给平台接口带来不必要压力。
+poll_seconds = 30
+error_retry_seconds = 60
+work_dir = "./data"
+log_level = "INFO"
+theme = "dark"
+
+[recording]
+# bililiverecorder：B站录播姬负责本地录制，本工具监听成片（推荐）。
+# livehime：兼容旧配置，行为同目录监听。
+# yt-dlp：本工具直接录制已获授权的远程直播。
+backend = "bililiverecorder"
+executable = "yt-dlp"
+format = "best"
+extension = "mp4"
+min_file_size_mb = 1
+# 填写“B站录播姬”的工作目录；当前项目部署在 G:/录播 时可使用点号。
+watch_dir = "."
+watch_extensions = ["mp4", "flv", "mkv", "ts"]
+# 下播后文件大小连续多少秒不再变化，才视为写入完成。
+stable_seconds = 15
+stable_timeout_seconds = 300
+# 房间仍在直播，但本地文件连续 30 秒不再增长时，视为手动停止录制。
+local_scan_seconds = 2
+manual_stop_stable_seconds = 30
+# 点击客户端“停止”后，最多等待本地录像完成写入的时间。
+interrupt_finalize_timeout_seconds = 60
+# 录像保留 168 小时（7 天）；默认只删除投稿成功的本地录像。
+retention_hours = 168
+retention_scan_minutes = 60
+delete_only_uploaded = true
+# 如直播间需要登录才能观看，填写 Netscape 格式 cookies 文件路径。
+cookie_file = ""
+extra_args = []
+
+[upload]
+# 安全默认值：先执行 check/doctor 和手工测试，再改为 true。
+enabled = false
+executable = "biliup"
+cookie_file = "./secrets/cookies.json"
+submit = "web"
+line = "bda2"
+limit = 3
+# 1=自制，2=转载。录制他人直播通常应填写 2，并获得授权。
+copyright = 2
+source = "https://live.bilibili.com/{room_id}"
+tid = 171
+tags = ["直播录像", "录播"]
+title = "{streamer}直播录像 {start_time}"
+publish_at = ""
+dynamic = ""
+is_only_self = false
+no_reprint = false
+charging_pay = false
+description = "直播间：{room_url}\n原直播标题：{room_title}\n录制开始：{start_time}"
+extra_args = []
+
+# 切片投稿与整场直播录像完全分开，可使用不同账号、分区、标签和简介。
+[clip_upload]
+enabled = true
+executable = "biliup"
+cookie_file = "./secrets/clip-cookies.json"
+submit = "web"
+line = "bda2"
+limit = 3
+# 1=自制，2=转载。切片来自他人直播时通常应填写 2，并确保已获授权。
+copyright = 2
+source = "https://live.bilibili.com/{room_id}"
+# B站数字分区 ID，不是直播间房间号。示例：21=日常、138=搞笑、17=单机游戏、171=电子竞技。
+tid = 138
+tags = ["直播切片", "高能切片"]
+title = "{streamer}直播切片"
+publish_at = ""
+dynamic = ""
+is_only_self = false
+no_reprint = false
+charging_pay = false
+description = "直播间：{room_url}\n切片来源：{start_time}"
+extra_args = []
+
+# 可选的智能切片大模型增强。只发送带时间戳的字幕，不发送录像文件或本地路径。
+# API 失败、超时或返回内容未通过本地证据校验时，会自动退回本地候选。
+[clip_ai]
+enabled = false
+base_url = ""
+model = ""
+# auto、responses 或 chat_completions；CC Switch 的 Codex 供应商通常使用 responses。
+protocol = "auto"
+# 密钥单独保存在 secrets 目录，不写进本 TOML。
+api_key_file = "./secrets/clip-ai-key.txt"
+timeout_seconds = 90
+chunk_minutes = 30
+
+[[rooms]]
+id = 1
+name = "示例主播"
+enabled = false

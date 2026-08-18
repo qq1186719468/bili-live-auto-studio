@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bili-live-auto"
+version = "0.1.0"
+description = "Bilibili 直播自动监控、录制与投稿编排工具"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Local Project"}]
+dependencies = [
+    "certifi>=2026.7.22",
+    "Pillow>=10,<13",
+    "pystray>=0.19,<1",
+    "opencc-python-reimplemented>=0.1.7",
+    "yt-dlp>=2024.1",
+]
+
+[project.scripts]
+bili-live-auto = "bili_live_auto.cli:main"
+bili-live-auto-gui = "bili_live_auto.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
