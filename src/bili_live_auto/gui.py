@@ -330,6 +330,7 @@ protocol = {_toml_string(str(values.get("clip_ai_protocol", "auto")))}
 api_key_file = {_toml_string(str(values.get("clip_ai_key_file", "./secrets/clip-ai-key.txt")))}
 timeout_seconds = {int(values.get("clip_ai_timeout_seconds", 90))}
 chunk_minutes = {int(values.get("clip_ai_chunk_minutes", 30))}
+auto_after_live_upload = {str(bool(values.get("auto_clip_after_live_upload", False))).lower()}
 
 [[rooms]]
 id = {int(values["room_id"])}
@@ -453,6 +454,7 @@ class DesktopClient:
         self.clip_ai_key_file = StringVar(value=str(base / "secrets" / "clip-ai-key.txt"))
         self.clip_ai_timeout_seconds = StringVar(value="90")
         self.clip_ai_chunk_minutes = StringVar(value="30")
+        self.auto_clip_after_live_upload = BooleanVar(value=False)
         self.clip_ai_status = StringVar(value="API 增强未启用；当前使用本地分析")
         self.status_text = StringVar(value="尚未启动")
         self.recorder_text = StringVar(value="正在检测录播姬……")
@@ -757,32 +759,43 @@ class DesktopClient:
             text="启用 OpenAI 兼容 API 语义增强",
             variable=self.clip_ai_enabled,
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        self._row(clip_ai, 2, "API 根地址 / 完整地址", self.clip_ai_base_url)
-        self._row(clip_ai, 3, "模型", self.clip_ai_model)
-        ttk.Label(clip_ai, text="协议").grid(row=4, column=0, sticky="w", pady=5)
+        ttk.Checkbutton(
+            clip_ai,
+            text="下播且整场投稿成功后自动生成当天切片（仅生成，待我手动投稿）",
+            variable=self.auto_clip_after_live_upload,
+        ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        ttk.Label(
+            clip_ai,
+            text="输出到“智能切片成片”，不会自动调用切片投稿账号；后续可在投稿台账中审核、编辑并手动投稿。",
+            style="Muted.TLabel",
+            wraplength=880,
+        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(0, 10))
+        self._row(clip_ai, 4, "API 根地址 / 完整地址", self.clip_ai_base_url)
+        self._row(clip_ai, 5, "模型", self.clip_ai_model)
+        ttk.Label(clip_ai, text="协议").grid(row=6, column=0, sticky="w", pady=5)
         ttk.Combobox(
             clip_ai,
             textvariable=self.clip_ai_protocol,
             values=("responses", "chat_completions", "auto"),
             state="readonly",
-        ).grid(row=4, column=1, sticky="ew", padx=8, pady=5)
-        ttk.Label(clip_ai, text="API Key").grid(row=5, column=0, sticky="w", pady=5)
+        ).grid(row=6, column=1, sticky="ew", padx=8, pady=5)
+        ttk.Label(clip_ai, text="API Key").grid(row=7, column=0, sticky="w", pady=5)
         ttk.Entry(clip_ai, textvariable=self.clip_ai_key_input, show="●").grid(
-            row=5, column=1, sticky="ew", padx=8, pady=5
+            row=7, column=1, sticky="ew", padx=8, pady=5
         )
         ttk.Label(clip_ai, text="留空会保留已保存密钥", style="Muted.TLabel").grid(
-            row=5, column=2, sticky="w", pady=5
+            row=7, column=2, sticky="w", pady=5
         )
-        self._row(clip_ai, 6, "单次超时（秒）", self.clip_ai_timeout_seconds)
-        self._row(clip_ai, 7, "字幕分块（分钟）", self.clip_ai_chunk_minutes)
+        self._row(clip_ai, 8, "单次超时（秒）", self.clip_ai_timeout_seconds)
+        self._row(clip_ai, 9, "字幕分块（分钟）", self.clip_ai_chunk_minutes)
         ttk.Label(
             clip_ai,
             textvariable=self.clip_ai_status,
             style="Muted.TLabel",
             wraplength=880,
-        ).grid(row=8, column=0, columnspan=3, sticky="w", pady=(10, 6))
+        ).grid(row=10, column=0, columnspan=3, sticky="w", pady=(10, 6))
         clip_ai_actions = ttk.Frame(clip_ai)
-        clip_ai_actions.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        clip_ai_actions.grid(row=11, column=0, columnspan=3, sticky="ew", pady=(8, 0))
         ttk.Button(
             clip_ai_actions,
             text="从 CC Switch 导入当前 Codex 供应商",
@@ -807,7 +820,7 @@ class DesktopClient:
             text="CC Switch 的 Codex/Responses 供应商可直接导入。密钥仅写入 secrets/clip-ai-key.txt，不写入 TOML 或日志。",
             style="Muted.TLabel",
             wraplength=880,
-        ).grid(row=10, column=0, columnspan=3, sticky="w", pady=(18, 0))
+        ).grid(row=12, column=0, columnspan=3, sticky="w", pady=(18, 0))
 
         manual_top = ttk.Frame(manual)
         manual_top.pack(fill=X, pady=(0, 10))
@@ -1308,6 +1321,7 @@ class DesktopClient:
             self.clip_ai_key_file.set(str(config.clip_ai.api_key_file))
             self.clip_ai_timeout_seconds.set(str(config.clip_ai.timeout_seconds))
             self.clip_ai_chunk_minutes.set(str(config.clip_ai.chunk_minutes))
+            self.auto_clip_after_live_upload.set(config.clip_ai.auto_after_live_upload)
             if config.clip_ai.api_key_file.is_file():
                 self.clip_ai_status.set(
                     f"已保存 API Key；{'API 增强已启用' if config.clip_ai.enabled else 'API 增强未启用'}"
@@ -1392,6 +1406,7 @@ class DesktopClient:
             "clip_ai_key_file": self.clip_ai_key_file.get().strip(),
             "clip_ai_timeout_seconds": clip_ai_timeout,
             "clip_ai_chunk_minutes": clip_ai_chunk_minutes,
+            "auto_clip_after_live_upload": self.auto_clip_after_live_upload.get(),
             "theme": self.theme_mode.get(),
             "retention_hours": int(self.retention_hours.get()),
             "delete_only_uploaded": self.delete_only_uploaded.get(),
@@ -1441,6 +1456,7 @@ class DesktopClient:
             api_key_file=Path(self.clip_ai_key_file.get().strip()).expanduser(),
             timeout_seconds=timeout_seconds,
             chunk_minutes=chunk_minutes,
+            auto_after_live_upload=self.auto_clip_after_live_upload.get(),
         )
 
     def _current_clip_ai_key(self, settings: ClipAISettings) -> str:

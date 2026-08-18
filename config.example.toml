@@ -91,6 +91,8 @@ protocol = "auto"
 api_key_file = "./secrets/clip-ai-key.txt"
 timeout_seconds = 90
 chunk_minutes = 30
+# 下播且整场直播投稿成功后自动生成切片；只生成成片，仍需在投稿台账手动投稿。
+auto_after_live_upload = false
 
 [[rooms]]
 id = 1

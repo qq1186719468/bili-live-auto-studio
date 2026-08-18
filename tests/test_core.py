@@ -380,6 +380,7 @@ class CoreTests(unittest.TestCase):
                     "clip_ai_key_file": str(root / "secrets" / "clip-ai-key.txt"),
                     "clip_ai_timeout_seconds": 120,
                     "clip_ai_chunk_minutes": 30,
+                    "auto_clip_after_live_upload": True,
                 },
                 path,
             )
@@ -398,6 +399,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(config.clip_ai.model, "gpt-test")
             self.assertEqual(config.clip_ai.protocol, "responses")
             self.assertEqual(config.clip_ai.api_key_file, root / "secrets" / "clip-ai-key.txt")
+            self.assertTrue(config.clip_ai.auto_after_live_upload)
 
 
 if __name__ == "__main__":

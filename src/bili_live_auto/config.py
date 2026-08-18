@@ -84,6 +84,7 @@ class ClipAISettings:
     api_key_file: Path = Path("secrets/clip-ai-key.txt")
     timeout_seconds: int = 90
     chunk_minutes: int = 30
+    auto_after_live_upload: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,6 +215,7 @@ def load_config(path: str | Path) -> Config:
         api_key_file=clip_ai_key_file,
         timeout_seconds=int(clip_ai_raw.get("timeout_seconds", 90)),
         chunk_minutes=int(clip_ai_raw.get("chunk_minutes", 30)),
+        auto_after_live_upload=bool(clip_ai_raw.get("auto_after_live_upload", False)),
     )
 
     rooms_raw = data.get("rooms", [])

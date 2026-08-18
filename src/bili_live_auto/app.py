@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .api import BilibiliLiveAPI, RoomIdentityMismatchError
+from .auto_clipper import generate_after_live_upload
 from .config import Config, RoomConfig
 from .models import Recording
 from .directory_recorder import DirectoryRecorder
@@ -33,6 +34,8 @@ class Application:
         self.history = UploadHistoryStore(config.app.work_dir / "data" / "upload_history.json")
         self.retention = RetentionManager(config.recording, self.history)
         self.stop_event = threading.Event()
+        self._auto_clip_lock = threading.Lock()
+        self._auto_clip_sessions: set[str] = set()
 
     @staticmethod
     def _session_key(recording: Recording) -> str:
@@ -69,7 +72,47 @@ class Application:
             return False
         self.history.update(history_id, "success", success_message, bvid=bvid or "")
         self.state.mark_uploaded(recording.event_key)
+        self._schedule_auto_clips(recording)
         return True
+
+    def _schedule_auto_clips(self, recording: Recording) -> None:
+        """Start one post-upload clip job per live session, without auto-upload."""
+
+        if not self.config.clip_ai.auto_after_live_upload:
+            return
+        session_key = self._session_key(recording)
+        with self._auto_clip_lock:
+            if session_key in self._auto_clip_sessions:
+                LOGGER.info("本场直播已启动自动切片，跳过重复任务：%s", session_key)
+                return
+            self._auto_clip_sessions.add(session_key)
+
+        def work() -> None:
+            try:
+                results = generate_after_live_upload(
+                    recording,
+                    self.config,
+                    lambda message: LOGGER.info("%s", message),
+                )
+                added = 0
+                for result in results:
+                    file_path = str(result.video.resolve())
+                    if self.history.files_are_claimed([file_path]):
+                        continue
+                    self.history.create(
+                        (file_path,),
+                        result.candidate.title,
+                        "clip",
+                        event_key=f"auto-clip:{session_key}:{result.candidate.id}",
+                        status="pending",
+                        message="下播后自动生成，等待手动投稿",
+                    )
+                    added += 1
+                LOGGER.info("本场直播自动切片完成：生成 %d 条，新增 %d 条待手动投稿台账", len(results), added)
+            except Exception:
+                LOGGER.exception("本场直播投稿成功，但下播后自动切片失败：%s", recording.path)
+
+        threading.Thread(target=work, daemon=True, name="auto-clip-after-live").start()
 
     def retry_pending(self) -> None:
         pending = self.state.pending()
