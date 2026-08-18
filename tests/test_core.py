@@ -20,6 +20,9 @@ from bili_live_auto.gui import (
     find_generated_clip_cover,
     find_local_recordings,
     find_videos_in_directory,
+    recording_file_title,
+    recording_identity,
+    recording_streamer_name,
     write_config,
 )
 from bili_live_auto.recorder_config import RecorderRoomMismatchError, read_recorder_room_ids, validate_recorder_room
@@ -82,6 +85,18 @@ class CoreTests(unittest.TestCase):
 
             self.assertEqual(result, {normal.resolve(), other_room.resolve(), top_level.resolve()})
             self.assertEqual(clip_result, [ignored_clip.resolve()])
+
+    def test_recording_identity_comes_from_room_folder_not_current_config(self):
+        path = Path(r"C:\recordings\26188314-战狼铠甲佳宝\录制-26188314-20260817-214019-250-宇宙家里蹲.flv")
+        self.assertEqual(recording_identity(path), (26188314, "战狼铠甲佳宝"))
+        self.assertEqual(recording_streamer_name(path, "其他主播"), "战狼铠甲佳宝")
+        self.assertEqual(recording_file_title(path), "宇宙家里蹲")
+
+    def test_recording_identity_accepts_underscore_folder_and_fallback(self):
+        path = Path(r"C:\recordings\22747736_主播甲\record.flv")
+        self.assertEqual(recording_identity(path), (22747736, "主播甲"))
+        self.assertEqual(recording_streamer_name(Path(r"C:\recordings\misc\record.flv"), "配置主播"), "配置主播")
+        self.assertEqual(recording_file_title(Path(r"C:\recordings\misc\record.flv"), "文件标题"), "文件标题")
 
     def test_recorder_command_contains_room_and_output(self):
         settings = RecordingSettings(cookie_file=Path("cookies.txt"), extra_args=("--verbose",))

@@ -58,7 +58,53 @@ from .recording_time import recording_start_time
 APP_TITLE = "录播自动上传助手"
 LOCAL_VIDEO_EXTENSIONS = {".flv", ".mp4", ".mkv", ".ts"}
 MIN_LEDGER_VIDEO_BYTES = 1024 * 1024
-ROOM_RECORDING_DIRECTORY = re.compile(r"^\d+(?:-.+)?$")
+ROOM_RECORDING_DIRECTORY = re.compile(r"^\d+(?:[-_].+)?$")
+ROOM_RECORDING_IDENTITY = re.compile(r"^(?P<room_id>\d+)(?:[-_](?P<streamer>.+))?$")
+RECORDED_FILE_TITLE = re.compile(
+    r"^录制-(?P<room_id>\d+)-(?P<date>\d{8})-(?P<time>\d{6})-(?P<sequence>\d+)-(?P<title>.+)$"
+)
+
+
+def recording_identity(path: Path) -> tuple[int | None, str]:
+    """Read the room identity embedded in a BililiveRecorder folder name.
+
+    BililiveRecorder normally stores files below ``<room_id>-<主播名>``.  The
+    underscore variant is accepted as well because older recorder versions
+    and manually renamed folders used it.  Returning an empty name means the
+    path did not carry a trustworthy streamer label and callers should use a
+    configured/API fallback.
+    """
+
+    parent = path.expanduser().parent.name.strip()
+    match = ROOM_RECORDING_IDENTITY.fullmatch(parent)
+    if not match:
+        return None, ""
+    try:
+        room_id = int(match.group("room_id"))
+    except (TypeError, ValueError):
+        return None, ""
+    return room_id, str(match.group("streamer") or "").strip()
+
+
+def recording_streamer_name(path: Path, fallback: str = "") -> str:
+    """Return the streamer encoded by a recording path, with a safe fallback."""
+
+    _room_id, streamer = recording_identity(path)
+    if streamer:
+        return streamer
+    parent = path.expanduser().parent.name.strip()
+    if " _ " in parent:
+        return parent.split(" _ ", 1)[0].strip()
+    return fallback.strip()
+
+
+def recording_file_title(path: Path, fallback: str = "") -> str:
+    """Extract the original live title from a recorder-generated filename."""
+
+    match = RECORDED_FILE_TITLE.match(path.expanduser().stem)
+    if match:
+        return str(match.group("title") or "").strip() or fallback.strip()
+    return fallback.strip()
 
 
 def find_local_recordings(work_dir: Path) -> list[Path]:
@@ -2037,7 +2083,12 @@ class DesktopClient:
         if not messagebox.askyesno("确认重新投稿", warning, parent=self.root):
             return
         upload_source = "clip" if has_clip else "manual"
-        title_override = str(items[0].get("title", "")).strip()
+        # A live recording title must be rebuilt from the selected file's
+        # room identity.  Reusing the ledger title here used to preserve a
+        # stale主播 name when the ledger entry had been created under another
+        # enabled room.  Clip titles are intentionally preserved because they
+        # are user-approved titles rather than live-room metadata.
+        title_override = str(items[0].get("title", "")).strip() if has_clip else ""
         self._manual_upload_files(
             files,
             source=upload_source,
@@ -2093,6 +2144,20 @@ class DesktopClient:
                 return
             upload_source = "clip" if has_clip else "manual"
             files = tuple(value for item in items for value in map(str, item.get("files", [])))
+            if upload_source != "clip":
+                identities = {
+                    (room_id, streamer)
+                    for value in files
+                    for room_id, streamer in (recording_identity(Path(value)),)
+                    if room_id is not None or streamer
+                }
+                if len(identities) > 1:
+                    messagebox.showinfo(
+                        APP_TITLE,
+                        "选中的直播录像来自不同房间或主播，不能合并为同一稿件；"
+                        "请在批量投稿方式中选择“否”分别投稿。",
+                    )
+                    return
             item_id = str(items[0]["id"])
             if len(items) > 1:
                 store = self._history_store()
@@ -2193,8 +2258,44 @@ class DesktopClient:
                     )
                     api_room = room
                 else:
-                    api_room = BilibiliLiveAPI().get_room(room_config.id, room_config.name)
-                    room = replace(api_room, live_time=manual_start.strftime("%Y-%m-%d %H:%M:%S"))
+                    # Resolve the room from the selected recording itself. A
+                    # manual ledger upload may contain a room different from
+                    # the currently enabled monitoring room. Previously this
+                    # always queried ``room_config`` and produced a wrong
+                    # streamer, title, and source URL in the投稿 form.
+                    path_room_id, path_streamer = recording_identity(Path(existing[0]))
+                    lookup_room_id = path_room_id or room_config.id
+                    try:
+                        # Do not pass the current configured name: it can be
+                        # for another room and would correctly trigger the
+                        # identity mismatch guard during a manual upload.
+                        api_room = BilibiliLiveAPI().get_room(lookup_room_id)
+                    except Exception as exc:
+                        # Posting a completed local file should remain
+                        # possible when the live API is temporarily offline.
+                        # Keep the path-derived identity and filename title;
+                        # the uploader still receives the correct room URL.
+                        logging.warning(
+                            "无法查询本地录像所属房间 %s，使用文件路径元数据：%s",
+                            lookup_room_id,
+                            exc,
+                        )
+                        api_room = LiveRoom(
+                            room_id=lookup_room_id,
+                            short_id=0,
+                            title=recording_file_title(Path(existing[0]), Path(existing[0]).stem)
+                            or "未命名直播",
+                            streamer=path_streamer or room_config.name or configured_streamer or "未知主播",
+                            live_status=0,
+                            live_time="",
+                        )
+                    room = replace(
+                        api_room,
+                        streamer=path_streamer or api_room.streamer,
+                        title=api_room.title
+                        or recording_file_title(Path(existing[0]), Path(existing[0]).stem),
+                        live_time=manual_start.strftime("%Y-%m-%d %H:%M:%S"),
+                    )
                 recording = Recording.from_room(
                     room,
                     existing,
