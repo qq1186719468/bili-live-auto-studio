@@ -306,7 +306,12 @@ def render_candidate(
     ffmpeg = find_ffmpeg()
     if ffmpeg is None:
         raise ClipperError("找不到支持字幕的现代 FFmpeg")
-    source_folder = _safe_filename(source.stem, "原始录像")[:48]
+    # Windows silently removes trailing spaces/dots from directory names.
+    # If a long source name is truncated exactly after a space, the directory
+    # created by mkdir and the later subtitle path no longer refer to the
+    # same path (the latter still contains that space).  Trim again after
+    # truncation so the .ass file is written where FFmpeg will find it.
+    source_folder = _safe_filename(source.stem, "原始录像")[:48].rstrip(" .") or "原始录像"
     output_dir = output_root.expanduser().resolve() / source_folder
     output_dir.mkdir(parents=True, exist_ok=True)
     title_identity = hashlib.sha256(

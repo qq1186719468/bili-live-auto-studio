@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 from bili_live_auto.clip_renderer import (
     _edited_filter_complex,
+    _safe_filename,
     _source_time_at_output_ratio,
     choose_sharpest_cover_frame,
     create_yellow_title_cover,
@@ -125,6 +126,11 @@ class ClipRendererTests(unittest.TestCase):
 
     def test_subtitle_text_is_simplified(self):
         self.assertEqual(to_simplified("這是一個測試"), "这是一个测试")
+
+    def test_long_source_folder_truncation_never_ends_with_windows_trimmed_space(self):
+        value = _safe_filename("A" * 47 + " 中文名")[:48].rstrip(" .")
+        self.assertEqual(len(value), 47)
+        self.assertFalse(value.endswith((" ", ".")))
 
 
 if __name__ == "__main__":

@@ -23,6 +23,9 @@ class OnlineSourceTests(unittest.TestCase):
         self.assertIn("--no-playlist", command)
         self.assertIn("--merge-output-format", command)
         self.assertIn("mp4", command)
+        self.assertIn("bv*[height<=1080]+ba/b[height<=1080]/b", command)
+        self.assertIn("--format-sort", command)
+        self.assertIn("res:1080,fps,br", command)
         self.assertNotIn("--write-subs", command)
 
 

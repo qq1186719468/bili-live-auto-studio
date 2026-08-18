@@ -56,7 +56,13 @@ def build_download_command(executable: str, url: str, output_dir: Path) -> list[
         "--no-warnings",
         "--windows-filenames",
         "--format",
-        "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        # Prefer the best separate video/audio streams up to 1080p.  If the
+        # source only exposes 720p (or a single combined stream), yt-dlp
+        # falls back to that highest available quality instead of forcing a
+        # low-resolution progressive format.
+        "bv*[height<=1080]+ba/b[height<=1080]/b",
+        "--format-sort",
+        "res:1080,fps,br",
         "--merge-output-format",
         "mp4",
         "--output",
@@ -138,4 +144,3 @@ def download_online_video(
     if progress:
         progress(100.0, f"在线来源下载完成：{result.name}")
     return result.resolve()
-
